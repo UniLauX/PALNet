@@ -32,7 +32,7 @@ class Project2Dto3D(nn.Module):
 
 
 class PALNet(nn.Module):
-    def __init__(self, abl2d=11, abl3d=11, ablbb=111):
+    def __init__(self):
         super(PALNet, self).__init__()
         print('PALNet: depth and TSDF stream')
 
