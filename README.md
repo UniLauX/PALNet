@@ -5,6 +5,14 @@ By Yu Liu*, Jie Li*, Xia Yuan, Chunxia Zhao, Roland Siegwart, Ian Reid and Cesar
 ## Video Demo: 
 https://youtu.be/j-LAMcMh0yg
 
+## Requirements:
+python 2.7
+
+pytorch 0.4.1
+
+CUDA 8
+
+
 ## Testing
 python ./test.py \
 --data_test=/path/to/NYUCADtest \
