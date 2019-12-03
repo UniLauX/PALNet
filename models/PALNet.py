@@ -1,12 +1,10 @@
 #!/usr/bin/env python
 # -*- coding: UTF-8 -*-
-
 import math
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
 from torch.autograd import Variable
-# from torch.nn.parameter import Parameter
 
 
 # ----------------------------------------------------------------------
@@ -33,118 +31,121 @@ class Project2Dto3D(nn.Module):
         return x3d
 
 
-# takes as inputs the depth and fTSDF
-class SSC_PALNet(nn.Module):
-    def __init__(self):
-        super(SSC_PALNet, self).__init__()
+class PALNet(nn.Module):
+    def __init__(self, abl2d=11, abl3d=11, ablbb=111):
+        super(PALNet, self).__init__()
+        print('PALNet: depth and TSDF stream')
 
-        # ---- depth
-        depth_out = 6
-        self.conv2d_depth = nn.Sequential(
-            nn.Conv2d(1, depth_out, 3, 1, 1),
+        # ---- depth 2D CNN
+        depth_out = 8
+        self.res2d_1_1 = nn.Conv2d(1, depth_out, 1, 1, 0)  # reduction
+        self.res2d_1_2 = nn.Sequential(
+            nn.Conv2d(1, 4, 1, 1, 0),
             nn.ReLU(inplace=True),
-            # nn.InstanceNorm2d(depth_out),
+            # nn.Conv2d(4, 4, 3, 1, 1),
+            nn.Conv2d(4, 4, 3, 1, 1, 1),  # dilated
+            nn.ReLU(inplace=True),
+            nn.Conv2d(4, 8, 1, 1, 0),
         )
-        in_ch = depth_out / 2
 
-        self.res_depth = nn.Sequential(
-            nn.Conv2d(depth_out, in_ch, 1, 1, 0),
+        self.res2d_2 = nn.Sequential(
+            nn.Conv2d(8, 4, 1, 1, 0),
             nn.ReLU(inplace=True),
-            nn.Conv2d(in_ch, in_ch, 3, 1, 1),
+            # nn.Conv2d(4, 4, 3, 1, 1),
+            nn.Conv2d(4, 4, 3, 1, 2, 2),  # dilated
             nn.ReLU(inplace=True),
-            nn.Conv2d(in_ch, depth_out, 1, 1, 0),
+            nn.Conv2d(4, 8, 1, 1, 0),
         )
 
         self.project_layer = Project2Dto3D(240, 144, 240)  # w=240, h=144, d=240
 
-        in_channel_3d = depth_out
-        stride = 2
-        self.pool1 = nn.Conv3d(in_channel_3d, 8, 7, stride, 3)
-        self.reduction2_1 = nn.Conv3d(8, 16, 1, 1, 0, bias=False)
-        self.conv2_1 = nn.Sequential(
-            nn.Conv3d(8, 8, 1, 1, 0),
+        # 3D CNN
+        stride1 = 1
+        stride2 = 2
+        self.a_pool1 = nn.Conv3d(8, 16, 7, stride2, 3)
+
+        self.a_res3d_1_1 = nn.Conv3d(16, 32, 1, 1, 0, bias=False)  # reduction
+        self.a_res3d_1_2 = nn.Sequential(
+            nn.Conv3d(16, 8, 1, 1, 0),
             nn.ReLU(inplace=True),
-            nn.Conv3d(8, 8, 3, 1, 1),
+            nn.Conv3d(8, 8, 3, 1, 1, 1),
             nn.ReLU(inplace=True),
-            nn.Conv3d(8, 16, 1, 1, 0)
+            nn.Conv3d(8, 32, 1, 1, 0)
         )
 
-        # ---- tsdf
-        # depth_tsdf = 1
-        in_channel_3d = 1
-        stride = 2
-        self.pool2 = nn.Conv3d(in_channel_3d, 8, 7, stride, 3)
-        self.reduction2_2 = nn.Conv3d(8, 16, 1, 1, 0, bias=False)
-        self.conv2_2 = nn.Sequential(
-            nn.Conv3d(8, 8, 1, 1, 0),
+        in_channel_3d = 1  # ---- tsdf
+        self.b_pool1 = nn.Conv3d(in_channel_3d, 16, 7, stride2, 3)
+
+        self.b_res3d_1_1 = nn.Conv3d(16, 32, 1, 1, 0, bias=False)
+        self.b_res3d_1_2 = nn.Sequential(
+            nn.Conv3d(16, 8, 1, 1, 0),
             nn.ReLU(inplace=True),
-            nn.Conv3d(8, 8, 3, 1, 1),
+            # nn.Conv3d(8, 8, 3, 1, 1),
+            nn.Conv3d(8, 8, 3, 1, 1, 1),
             nn.ReLU(inplace=True),
-            nn.Conv3d(8, 16, 1, 1, 0)
+            nn.Conv3d(8, 32, 1, 1, 0)
         )
 
         # stride = 2
-        # self.pool2 = nn.MaxPool3d(kernel_size=2, stride=2)
+        self.a_pool2 = nn.MaxPool3d(kernel_size=2, stride=2)
+        self.b_pool2 = nn.MaxPool3d(kernel_size=2, stride=2)
         # self.pool2 = nn.Conv3d(32, 32, 3, stride, 1)
 
-        # stride = 1
-        stride = 2
-        self.reduction3_1 = nn.Conv3d(16, 32, 1, stride, 0, bias=False)
-        self.conv3_1 = nn.Sequential(
-            nn.Conv3d(16, 8, 1, stride, 0),
+        self.a_res3d_2_1 = nn.Conv3d(32, 64, 1, stride1, 0, bias=False)
+        self.a_res3d_2_2 = nn.Sequential(
+            nn.Conv3d(32, 16, 1, stride1, 0),
             nn.ReLU(inplace=True),
-            nn.Conv3d(8, 8, 3, 1, 1),
+            # nn.Conv3d(16, 16, 3, 1, 1),
+            nn.Conv3d(16, 16, 3, 1, 2, 2),
             nn.ReLU(inplace=True),
-            nn.Conv3d(8, 32, 1, 1, 0),
+            nn.Conv3d(16, 64, 1, 1, 0),
         )
 
-        stride = 2
-        self.reduction3_2 = nn.Conv3d(16, 32, 1, stride, 0, bias=False)
-        self.conv3_2 = nn.Sequential(
-            nn.Conv3d(16, 8, 1, stride, 0),
+        self.b_res3d_2_1 = nn.Conv3d(32, 64, 1, stride1, 0, bias=False)
+        self.b_res3d_2_2 = nn.Sequential(
+            nn.Conv3d(32, 16, 1, stride1, 0),
             nn.ReLU(inplace=True),
-            nn.Conv3d(8, 8, 3, 1, 1),
+            # nn.Conv3d(16, 16, 3, 1, 1),
+            nn.Conv3d(16, 16, 3, 1, 2, 2),
             nn.ReLU(inplace=True),
-            nn.Conv3d(8, 32, 1, 1, 0),
+            nn.Conv3d(16, 64, 1, 1, 0),
         )
 
+        # self.cat = nn.Conv3d(32, 64, 1, 1, 0)
         # -------------1/4
-
-        self.conv3_3 = nn.Sequential(
+        self.res3d_1 = nn.Sequential(
             nn.Conv3d(64, 32, 1, 1, 0),
             nn.ReLU(inplace=True),
-            nn.Conv3d(32, 32, 3, 1, 1),
-            nn.ReLU(inplace=True),
-            nn.Conv3d(32, 64, 1, 1, 0),
-        )
-
-        self.conv3_5 = nn.Sequential(
-            nn.Conv3d(64, 32, 1, 1, 0),
-            nn.ReLU(inplace=True),
-            nn.Conv3d(32, 32, 3, 1, 2, 2),
             nn.Conv3d(32, 32, 3, 1, 2, 2),
             nn.ReLU(inplace=True),
             nn.Conv3d(32, 64, 1, 1, 0),
         )
 
-        self.conv3_7 = nn.Sequential(
+        self.res3d_2 = nn.Sequential(
             nn.Conv3d(64, 32, 1, 1, 0),
             nn.ReLU(inplace=True),
-            nn.Conv3d(32, 32, 3, 1, 2, 2),
-            nn.Conv3d(32, 32, 3, 1, 2, 2),
+            nn.Conv3d(32, 32, 3, 1, 3, 3),
+            nn.ReLU(inplace=True),
+            nn.Conv3d(32, 64, 1, 1, 0),
+        )
+
+        self.res3d_3 = nn.Sequential(
+            nn.Conv3d(64, 32, 1, 1, 0),
+            nn.ReLU(inplace=True),
+            nn.Conv3d(32, 32, 3, 1, 5, 5),
             nn.ReLU(inplace=True),
             nn.Conv3d(32, 64, 1, 1, 0),
         )
 
         self.conv4_1 = nn.Conv3d(256, 128, 1, 1, 0)
-        self.relu4_1 = nn.ReLU(inplace=True)
+        # self.relu4_1 = nn.ReLU(inplace=True)
 
         self.conv4_2 = nn.Conv3d(128, 128, 1, 1, 0)
-        self.relu4_2 = nn.ReLU(inplace=True)
+        # self.relu4_2 = nn.ReLU(inplace=True)
 
         self.fc12 = nn.Conv3d(128, 12, 1, 1, 0)  # C_NUM = 12, number of classes is 12
 
-        self.softmax = nn.Softmax(dim=1)  # pytorch 0.3.0
+        # self.softmax = nn.Softmax(dim=1)  # pytorch 0.3.0
         # self.logsoftmax = nn.LogSoftmax(dim=1)
 
         # ----  weights init
@@ -159,84 +160,60 @@ class SSC_PALNet(nn.Module):
         nn.init.normal_(self.conv4_2.weight.data, mean=0, std=0.01)
         nn.init.normal_(self.fc12.weight.data, mean=0, std=0.01)
 
-    def forward(self, x_depth, x_tsdf, p):
+    def forward(self, x_tsdf=None, x_depth=None, p=None):
         # input: x (BS, 3L, 240L, 144L, 240L)
         # print('SSC: x.shape', x.shape)
         # x0 = self.conv2d(x)
-        x0_depth = self.conv2d_depth(x_depth)
-        x0_depth = F.relu(self.res_depth(x0_depth) + x0_depth, inplace=True)
-        x0_depth = self.project_layer(x0_depth, p)
+        if x_depth is not None:
+            x0_depth = F.relu(self.res2d_1_1(x_depth) + self.res2d_1_2(x_depth), inplace=True)
+            x0_depth = F.relu(self.res2d_2(x0_depth) + x0_depth, inplace=True)
 
-        x1_depth = self.pool1(x0_depth)
-        x1_depth = F.relu(x1_depth, inplace=True)
+            x0_depth = self.project_layer(x0_depth, p)
 
-        x2_1_depth = self.reduction2_1(x1_depth)  # (BS, 32L, 120L, 72L, 120L)
-        x2_2_depth = self.conv2_1(x1_depth)
-        x2_depth = x2_1_depth + x2_2_depth
-        x2_depth = F.relu(x2_depth, inplace=True)
+            x1_depth = self.a_pool1(x0_depth)
+            x1_depth = F.relu(x1_depth, inplace=True)  # (BS, 32L, 120L, 72L, 120L)
 
-        x1_tsdf = self.pool2(x_tsdf)            # (BS, 16L, 120L, 72L, 120L)
-        x1_tsdf = F.relu(x1_tsdf, inplace=True)
-        # print 'SSC: x1', x1.size()
+            x2_depth = F.relu(self.a_res3d_1_1(x1_depth) + self.a_res3d_1_2(x1_depth), inplace=True)
 
-        x2_1_tsdf = self.reduction2_2(x1_tsdf)     # (BS, 32L, 120L, 72L, 120L)
-        x2_2_tsdf = self.conv2_2(x1_tsdf)
-        x2_tsdf = x2_1_tsdf + x2_2_tsdf
-        x2_tsdf = F.relu(x2_tsdf, inplace=True)
+            x2_depth = self.a_pool2(x2_depth)  # (BS, 64L, 60L, 36L, 60L)
+            # x2_depth = F.relu(x2_depth, inplace=True)
 
-        # print('SSC: x2_depth.shape', x2_depth.shape)
-        # print('SSC: x2_tsdf.shape', x2_tsdf.shape)
+            x_3_depth = F.relu(self.a_res3d_2_1(x2_depth) + self.a_res3d_2_2(x2_depth), inplace=True)
+            # print('SSC: x_3_depth', x_3_depth.size())
 
-        # x2 = torch.cat((x2_depth, x2_tsdf), dim=1)
-        # print('SSC: x0.shape', x0.shape)  # (BS, c, 480L, 640L)
+        if x_tsdf is not None:
+            x1_tsdf = self.b_pool1(x_tsdf)            # (BS, 16L, 120L, 72L, 120L)
+            x1_tsdf = F.relu(x1_tsdf, inplace=True)
+            # print 'SSC: x1', x1.size()
+
+            x2_tsdf = F.relu(self.b_res3d_1_1(x1_tsdf) + self.b_res3d_1_2(x1_tsdf), inplace=True)
+
+            x2_tsdf = self.b_pool2(x2_tsdf)
+
+            # (BS, 64L, 60L, 36L, 60L)
+            x_3_tsdf = F.relu(self.b_res3d_2_1(x2_tsdf) + self.b_res3d_2_2(x2_tsdf), inplace=True)
+            # print('SSC: x_3_tsdf', x_3_tsdf.size())
+
+        if (x_tsdf is not None) and (x_depth is not None):
+            x_3 = x_3_depth + x_3_tsdf
+        elif x_depth is not None:  # x_tsdf is None
+            x_3 = x_3_depth
+        elif x_tsdf is not None:  # x_depth is None
+            x_3 = x_3_tsdf
+        else:
+            print('Input is None')
+            exit(0)
 
         # -------------------------------------------------------------------
-        # 2D 转3D
-        # bs, c, imgH, imgW = x0.shape
-        # src = x0.view(bs, c, -1)
-        # p = p.view(bs, 1, -1)
-        # index = p.expand(-1, c, -1)  # expand to c channels
-        #
-        # out = x0.new_zeros((bs, c, 240*144*240))
-        # out, _ = scatter_max(src, index, out=out)  # dim_size=240*144*240,
-        # x_3d = out.view(bs, c, 240, 144, 240)  # (BS, c, vW, vH, vD)
-        # x_3d = x_3d.permute(0, 1, 4, 3, 2)     # (BS, c, vW, vH, vD)--> (BS, c, vD, vH, vW)
-
-        # x_3d = self.project_layer(x0, p)
-
-        # ---------------------------------------------------
-        # print 'SSC: x_3d', x_3d.size()
-        # x1 = self.pool1(x0)            # (BS, 16L, 120L, 72L, 120L)
-
-        # x_2 = self.pool2(x2)            # x_2: (BS, 32L, 60L, 36L, 60L)
-        # x_2 = F.relu(x_2, inplace=True)
-        # print 'SSC: x', x.size()
-
-        x3_1_depth = self.reduction3_1(x2_depth)  # (BS, 64L, 60L, 36L, 60L)
-        x3_2_depth = self.conv3_1(x2_depth)
-        x_3_depth = x3_1_depth + x3_2_depth
-        x_3_depth = F.relu(x_3_depth, inplace=True)
-        # print('SSC: x_3_depth', x_3_depth.size())
-
-        x3_1_tsdf = self.reduction3_2(x2_tsdf)   # (BS, 64L, 60L, 36L, 60L)
-        x3_2_tsdf = self.conv3_2(x2_tsdf)        #
-        x_3_tsdf = x3_1_tsdf + x3_2_tsdf
-        x_3_tsdf = F.relu(x_3_tsdf, inplace=True)
-        # print('SSC: x_3_tsdf', x_3_tsdf.size())
-
-        x_3 = torch.cat((x_3_depth, x_3_tsdf), dim=1)
 
         # ---- 1/4
-        x_4 = self.conv3_3(x_3) + x_3
-        x_4 = F.relu(x_4, inplace=True)
+        x_4 = F.relu(self.res3d_1(x_3) + x_3, inplace=True)
         # print 'SSC: x_4', x_4.size()
 
-        x_5 = self.conv3_5(x_4) + x_4
-        x_5 = F.relu(x_5, inplace=True)
+        x_5 = F.relu(self.res3d_2(x_4) + x_4, inplace=True)
         # print 'SSC: x_5', x_5.size()
 
-        x_6 = self.conv3_7(x_5) + x_5
-        x_6 = F.relu(x_6, inplace=True)
+        x_6 = F.relu(self.res3d_3(x_5) + x_5, inplace=True)
         # print 'SSC: x_6', x_6.size()
 
         x_6 = torch.cat((x_3, x_4, x_5, x_6), dim=1)  # channels concatenate
