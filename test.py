@@ -32,6 +32,7 @@ parser.add_argument('--data_test', default='./test', metavar='DIR', help='path t
 parser.add_argument('--batch_size', default=4, type=int, metavar='N', help='mini-batch size (default: 4)')
 parser.add_argument('--workers', default=4, type=int, metavar='N', help='number of data loading workers (default: 4)')
 parser.add_argument('--resume', default='', type=str, metavar='PATH', help='path to latest checkpoint (default: none)')
+parser.add_argument('--encoding', default='TSDF', type=str, metavar='Encoding', help='encoding of input voxels')
 
 
 global args
