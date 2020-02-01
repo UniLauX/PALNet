@@ -30,4 +30,4 @@ Here is the [NYUCAD](https://drive.google.com/open?id=10Iz7lkJf8kbtUf1OyL-Z1xW6e
 
 
 ## Adelaide AI Group
-https://github.com/Adelaide-AI-Group/Adelaide-AI-Group.github.io
+more work from Adelaide can be found in: https://github.com/Adelaide-AI-Group/Adelaide-AI-Group.github.io
