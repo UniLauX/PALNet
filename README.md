@@ -29,4 +29,5 @@ The original dataset is from [SSCNet](https://github.com/shurans/sscnet)
 Here is the [NYUCAD](https://drive.google.com/open?id=10Iz7lkJf8kbtUf1OyL-Z1xW6eZRoF3d8) data reproduced from SSCNet for a quick demo.
 
 
-
+## Adelaide AI Group
+https://github.com/Adelaide-AI-Group/Adelaide-AI-Group.github.io
