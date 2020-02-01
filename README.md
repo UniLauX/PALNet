@@ -1,6 +1,6 @@
 # Depth Based Semantic Scene Completion with Position Importance Aware Loss
 
-By Yu Liu*, Jie Li*, Xia Yuan, Chunxia Zhao, Roland Siegwart, Ian Reid and Cesar Cadena (* indicates equal contribution)
+By [Yu Liu*](https://sites.google.com/site/yuliuunilau/home), Jie Li*, Xia Yuan, Chunxia Zhao, [Roland Siegwart](https://scholar.google.com/citations?user=MDIyLnwAAAAJ&hl=en), [Ian Reid](https://cs.adelaide.edu.au/~ianr/) and [Cesar Cadena](http://n.ethz.ch/~cesarc/) (* indicates equal contribution)
 
 ## Video Demo: 
 https://youtu.be/j-LAMcMh0yg
