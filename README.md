@@ -2,6 +2,9 @@
 
 By [Yu Liu*](https://sites.google.com/site/yuliuunilau/home), Jie Li*, Xia Yuan, Chunxia Zhao, [Roland Siegwart](https://scholar.google.com/citations?user=MDIyLnwAAAAJ&hl=en), [Ian Reid](https://cs.adelaide.edu.au/~ianr/) and [Cesar Cadena](http://n.ethz.ch/~cesarc/) (* indicates equal contribution)
 
+
+ICRA2020 In Conjunction of RAL
+
 ## Video Demo: 
 https://youtu.be/j-LAMcMh0yg
 
